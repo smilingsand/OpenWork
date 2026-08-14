@@ -4,6 +4,7 @@
   "version": "1.0.0",
   "description": "OpenWork globe job explorer",
   "scripts": {
+    "dev": "node backend/src/app.mjs",
     "test:smoke": "node tests/smoke.mjs"
   },
   "dependencies": {

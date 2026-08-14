@@ -3,7 +3,7 @@
 
   const xhsMode = Boolean(window.XHS_TOOL_MODE);
   const jobs = window.WORK_JOBS || [];
-  const mapJobs = jobs.filter((job) => job.mapPrecision === "city"
+  let mapJobs = jobs.filter((job) => job.mapPrecision === "city"
     && Number.isFinite(job.lat)
     && Number.isFinite(job.lng));
   const categories = window.WORK_CATEGORIES || {};
@@ -79,6 +79,7 @@
     selectionType: null,
     selectionLabel: "",
     selectedCountryKey: null,
+    selectedCountryName: "",
     hovered: null,
     featured: null,
     countries: [],
@@ -94,7 +95,10 @@
     offset: [0, 0],
     offsetAnimation: 0,
     lastPointClickAt: 0,
-    feedbackTimer: 0
+    feedbackTimer: 0,
+    popoverTimer: 0,
+    popoverKey: "",
+    pointer: { clientX: window.innerWidth / 2, clientY: window.innerHeight / 2 }
   };
 
   const $ = (selector, scope = document) => scope.querySelector(selector);
@@ -112,10 +116,13 @@
     search: $("#job-search"),
     count: $("#search-count"),
     sheet: $("#result-sheet"),
+    popover: $("#map-popover"),
     resultLabel: $("#result-label"),
     resultList: $("#result-list"),
     resultEmpty: $("#result-empty"),
     closeResults: $("#close-results"),
+    rangeDays: $("#range-days"),
+    workMode: $("#work-mode"),
     card: $("#job-card"),
     cardPrev: $("#card-prev"),
     cardNext: $("#card-next"),
@@ -226,7 +233,9 @@
   }
 
   function matchingJobs() {
-    return jobs.filter(matches).sort((a, b) => (b.attention || 0) - (a.attention || 0));
+    return jobs.filter((job) => matches(job)
+      && (!state.selectedCountryKey || job.countryKey === state.selectedCountryKey))
+      .sort((a, b) => (b.attention || 0) - (a.attention || 0));
   }
 
   function pointRadius(job) {
@@ -249,49 +258,45 @@
 
   function tooltip(marker) {
     if (!marker) return "";
-    if (marker.isCluster) {
-      const first = marker.jobs[0];
-      return `<div class="map-tooltip" style="--tooltip-color:${marker.color}">
-        <div class="map-tooltip-head">
-          <span><i aria-hidden="true"></i>重叠岗位合集</span>
-          <em>${marker.jobs.length} 个岗位</em>
-        </div>
-        <b>${escapeHtml(first.mapCity || first.location || "这个地区")}</b>
-        <p>${escapeHtml([...new Set(marker.jobs.map((job) => job.category))].slice(0, 3).join(" · "))}</p>
-        <small>点击圆钉，使用上方箭头逐个查看</small>
-      </div>`;
-    }
-    const job = marker.job || marker;
-    const pointKind = job.mapBasis === "company-hq" ? "公司总部" : "职位城市";
-    return `<div class="map-tooltip" style="--tooltip-color:${colorFor(job)}">
+    const pointJobs = marker.isCluster ? marker.jobs : [marker.job || marker];
+    const first = pointJobs[0];
+    const city = first.mapCity || first.location || "这个地区";
+    return `<div class="map-tooltip" style="--tooltip-color:${colorFor(first)}">
       <div class="map-tooltip-head">
-        <span><i aria-hidden="true"></i>${escapeHtml(job.category)} · ${pointKind}</span>
-        <em>${escapeHtml(job.posted)}</em>
+        <span><i aria-hidden="true"></i>${escapeHtml(city)}</span>
+        <em>${pointJobs.length} 个岗位</em>
       </div>
-      <b>${escapeHtml(job.title)}</b>
-      <p>${escapeHtml(job.company)}</p>
-      <div class="map-tooltip-facts">
-        <span>${escapeHtml(job.mapCity || job.location)}</span>
-        <span>${escapeHtml(job.salary || "薪资面议")}</span>
+      <div class="map-tooltip-jobs">
+        ${pointJobs.map((job) => `<a class="map-tooltip-job" href="${escapeHtml(job.sourceUrl || "#")}" target="_blank" rel="noreferrer noopener" aria-label="查看 ${escapeHtml(job.title)} 的职位页面">
+          <span><b>${escapeHtml(job.title)}</b><em>${escapeHtml(job.company)} · ${escapeHtml(job.posted)}</em></span>
+          <i aria-hidden="true">↗</i>
+        </a>`).join("")}
       </div>
-      <small>点击圆钉查看完整职位</small>
     </div>`;
   }
 
-  function hoverJob(job) {
-    const next = job?.job || job || null;
-    if ((state.hovered?.id || null) === (next?.id || null)) return;
+  function hoverJob(marker) {
+    const next = marker?.job || marker?.jobs?.[0] || marker || null;
+    const changed = (state.hovered?.id || null) !== (next?.id || null);
     state.hovered = next;
-    if (!state.globe) return;
-    refreshMarkerScales();
+    if (changed && state.globe) refreshMarkerScales();
+    if (!marker) {
+      scheduleMapPopoverHide();
+      return;
+    }
+    window.clearTimeout(state.popoverTimer);
+    dismissJobDetails();
+    showMapPopover(marker, state.pointer);
   }
 
   function renderResults() {
     const result = matchingJobs();
-    const visible = result.slice(0, 8);
+    const visible = result.slice(0, 20);
     els.count.textContent = activeSearch() ? `${result.length} 个` : "";
     els.resultLabel.textContent = activeSearch()
-      ? `找到 ${result.length} 个岗位`
+      ? state.selectedCountryKey
+        ? `${state.selectedCountryName} · ${result.length} 个岗位`
+        : `找到 ${result.length} 个岗位`
       : "本月值得看看";
     els.resultEmpty.hidden = result.length > 0;
     els.resultList.innerHTML = visible.map((job) => `
@@ -304,8 +309,7 @@
     $$(".result-item", els.resultList).forEach((button) => {
       button.addEventListener("click", () => {
         const job = jobs.find((item) => item.id === button.dataset.jobId);
-        if (job) selectJob(job);
-        closeResults();
+        if (job) selectJob(job, { keepResults: true, countryKey: state.selectedCountryKey });
       });
     });
   }
@@ -347,6 +351,46 @@
     if (shouldOpen) openResults();
   }
 
+  async function refreshSearch() {
+    const keyword = els.search.value.trim();
+    if (!keyword) {
+      els.search.focus();
+      return;
+    }
+    state.query = keyword;
+    els.count.textContent = "检索中…";
+    try {
+      const created = await fetch("/api/searches", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ keyword, filters: { rangeDays: Number(els.rangeDays.value), workMode: els.workMode.value } })
+      }).then((response) => response.json());
+      if (!created.taskId) throw new Error(created.error || "无法创建搜索任务");
+      let task;
+      do {
+        await new Promise((resolve) => window.setTimeout(resolve, 700));
+        task = await fetch(`/api/searches/${created.taskId}`).then((response) => response.json());
+      } while (["queued", "running"].includes(task.status));
+      if (!task.result) throw new Error(task.error || "搜索未返回结果");
+      clearSelection(false);
+      jobs.splice(0, jobs.length, ...task.result.jobs);
+      window.WORK_JOBS = jobs;
+      mapJobs = jobs.filter((job) => job.mapPrecision === "city" && Number.isFinite(job.lat) && Number.isFinite(job.lng));
+      spreadSharedLocations(mapJobs);
+      refreshCountryJobAssignments();
+      renderResults();
+      refreshGlobePoints();
+      openResults();
+      els.count.textContent = `${jobs.length} 个`;
+      els.resultLabel.textContent = task.status === "partial" ? `找到 ${jobs.length} 个岗位（部分来源不可用）` : `找到 ${jobs.length} 个岗位`;
+    } catch (error) {
+      els.count.textContent = "检索失败";
+      els.resultLabel.textContent = error.message || "刷新失败，请稍后重试";
+      openResults();
+    } finally {
+    }
+  }
+
   function setCardDetails(open) {
     els.card.classList.toggle("is-details-open", open);
     els.cardDetails.setAttribute("aria-expanded", String(open));
@@ -374,7 +418,7 @@
       els.cardApply.target = "_blank";
       els.cardApply.rel = "noreferrer noopener";
       els.cardApply.classList.remove("is-offline");
-      els.cardApply.setAttribute("aria-label", `立即投递 ${job.title}`);
+      els.cardApply.setAttribute("aria-label", `前往 ${job.title} 的岗位页面`);
     }
   }
 
@@ -426,6 +470,7 @@
   }
 
   function selectJob(job, options = {}) {
+    hideMapPopover();
     const pool = options.pool?.length ? options.pool : matchingJobs();
     const previousCountryKey = state.selectedCountryKey;
     state.selected = job;
@@ -434,7 +479,7 @@
     state.selectionLabel = options.label || "";
     state.selectedCountryKey = options.countryKey || null;
     if (previousCountryKey !== state.selectedCountryKey) refreshCountryStyles();
-    closeResults();
+    if (!options.keepResults) closeResults();
     renderCard(job);
     const hasCityPoint = job.mapPrecision === "city" && Number.isFinite(job.mapLat) && Number.isFinite(job.mapLng);
     const layout = viewLayout("explore");
@@ -458,11 +503,15 @@
     if (!marker) return;
     const pool = marker.isCluster ? marker.jobs : [marker.job || marker];
     const job = pool[0];
-    selectJob(job, {
-      pool,
-      type: marker.isCluster ? "cluster" : "job",
-      label: marker.isCluster ? `${job.mapCity || job.location} · ${pool.length} 个岗位` : ""
-    });
+    if (!job) return;
+    els.card.hidden = true;
+    state.selected = null;
+    state.selectionPool = [];
+    state.selectionType = null;
+    state.selectionLabel = "";
+    state.globe?.ringsData([]);
+    showMapPopover(marker, event);
+    stopAutoRotation();
   }
 
   function countryName(feature) {
@@ -479,44 +528,38 @@
   function selectCountry(feature, event) {
     state.lastPointClickAt = performance.now();
     event?.stopPropagation?.();
-    const pool = (feature._jobs || []).filter(matches)
-      .sort((a, b) => (b.attention || 0) - (a.attention || 0));
     state.selectedCountryKey = feature._countryKey;
+    state.selectedCountryName = countryName(feature);
+    dismissJobDetails(false);
     refreshCountryStyles();
-    if (!pool.length) {
-      clearSelection(false, true);
-      els.resultLabel.textContent = `${countryName(feature)} · 暂无匹配岗位`;
-      els.resultEmpty.hidden = false;
-      els.resultList.innerHTML = "";
-      els.sheet.hidden = false;
-      state.resultsOpen = true;
-      return;
-    }
-    selectJob(pool[0], {
-      pool,
-      type: "country",
-      label: `${countryName(feature)} · ${pool.length} 个岗位`,
-      countryKey: feature._countryKey
-    });
+    refreshGlobePoints();
+    openResults();
   }
 
   function clearFromGlobe() {
     if (performance.now() - state.lastPointClickAt < 180) return;
     clearSelection();
+    scheduleAutoRotation(300);
   }
 
   function clearSelection(sync = true, keepCountry = false) {
+    hideMapPopover();
     const hadSelection = Boolean(state.selected);
     state.selected = null;
     state.selectionPool = [];
     state.selectionType = null;
     state.selectionLabel = "";
-    if (!keepCountry) state.selectedCountryKey = null;
+    if (!keepCountry) {
+      state.selectedCountryKey = null;
+      state.selectedCountryName = "";
+    }
     state.featured = null;
     els.card.hidden = true;
     setCardDetails(false);
     state.globe?.ringsData([]);
     refreshCountryStyles();
+    renderResults();
+    refreshGlobePoints();
     if (hadSelection && state.view === "explore" && state.globe) {
       const layout = viewLayout("explore");
       const current = state.globe.pointOfView();
@@ -529,6 +572,52 @@
       }, duration);
     }
     if (sync) syncUrl();
+  }
+
+  function dismissJobDetails(sync = true) {
+    if (!state.selected && els.card.hidden) return;
+    state.selected = null;
+    state.selectionPool = [];
+    state.selectionType = null;
+    state.selectionLabel = "";
+    state.featured = null;
+    els.card.hidden = true;
+    setCardDetails(false);
+    state.globe?.ringsData([]);
+    if (sync) syncUrl();
+  }
+
+  function hideMapPopover() {
+    if (!els.popover) return;
+    window.clearTimeout(state.popoverTimer);
+    els.popover.hidden = true;
+    els.popover.classList.remove("is-below");
+    state.popoverKey = "";
+  }
+
+  function scheduleMapPopoverHide() {
+    window.clearTimeout(state.popoverTimer);
+    state.popoverTimer = window.setTimeout(hideMapPopover, 140);
+  }
+
+  function showMapPopover(marker, event) {
+    if (!els.popover) return;
+    dismissJobDetails(false);
+    const pointJobs = marker.isCluster ? marker.jobs : [marker.job || marker];
+    const key = marker.isCluster
+      ? pointJobs.map((job) => job.id).join("|")
+      : pointJobs[0]?.id || "";
+    if (state.popoverKey !== key) {
+      els.popover.innerHTML = tooltip(marker);
+      state.popoverKey = key;
+    }
+    const x = Number.isFinite(event?.clientX) ? event.clientX : window.innerWidth / 2;
+    const y = Number.isFinite(event?.clientY) ? event.clientY : window.innerHeight / 2;
+    els.popover.style.left = `${x}px`;
+    els.popover.style.top = `${y}px`;
+    els.popover.hidden = false;
+    const height = els.popover.getBoundingClientRect().height;
+    els.popover.classList.toggle("is-below", y - height - 18 < 12);
   }
 
   function resetView() {
@@ -757,8 +846,16 @@
       _jobs: []
     }));
     prepared.forEach((feature) => { feature._bounds = featureBounds({ geometry: feature._sourceGeometry }); });
+    assignJobsToCountries(prepared);
+    colorCountries(prepared);
+    state.countries = prepared;
+    return prepared;
+  }
+
+  function assignJobsToCountries(features) {
+    features.forEach((feature) => { feature._jobs = []; });
     mapJobs.forEach((job) => {
-      const owner = prepared.find((feature) => {
+      const owner = features.find((feature) => {
         const bounds = feature._bounds;
         if (!bounds) return false;
         const inBounds = bounds.maxLng - bounds.minLng > 350
@@ -771,9 +868,12 @@
         job.countryKey = owner._countryKey;
       }
     });
-    colorCountries(prepared);
-    state.countries = prepared;
-    return prepared;
+  }
+
+  function refreshCountryJobAssignments() {
+    if (!state.countries.length) return;
+    assignJobsToCountries(state.countries);
+    refreshCountryStyles();
   }
 
   function landColor(feature) {
@@ -803,11 +903,6 @@
     return feature._countryKey === state.selectedCountryKey
       ? "rgba(70, 78, 78, 0.2)"
       : "rgba(82, 91, 91, 0.11)";
-  }
-
-  function countryLabel(feature) {
-    const count = (feature._jobs || []).filter(matches).length;
-    return `<div class="country-tooltip"><b>${escapeHtml(countryName(feature))}</b><span>${count ? `${count} 个岗位 · 点击查看` : "暂无匹配岗位"}</span></div>`;
   }
 
   function refreshCountryStyles() {
@@ -1115,7 +1210,8 @@
 
   function refreshMarkers() {
     if (!state.globe) return;
-    const visibleJobs = mapJobs.filter(matches);
+    const visibleJobs = mapJobs.filter((job) => matches(job)
+      && (!state.selectedCountryKey || job.countryKey === state.selectedCountryKey));
     const markers = buildMarkers(visibleJobs);
     state.markers = markers;
     state.markerObjects.clear();
@@ -1134,7 +1230,7 @@
         .pointAltitude(() => 0.008)
         .pointRadius((marker) => marker.isCluster ? 0.52 : 0.32)
         .pointColor((marker) => marker.color)
-        .pointLabel(tooltip);
+        .pointLabel(() => "");
     }
   }
 
@@ -1185,19 +1281,30 @@
     }
     if (!state.selected) {
       return {
-        offset: [0, width <= 760 ? Math.round(height * 0.17) : Math.round(height * 0.07)],
+        offset: [exploreHorizontalOffset(width), width <= 760 ? Math.round(height * 0.17) : Math.round(height * 0.07)],
         altitude: defaultExploreAltitude(),
         lng: 20
       };
     }
     return {
       offset: [
-        0,
-        width <= 760 ? Math.round(height * 0.31) : Math.round(height * 0.34)
+        exploreHorizontalOffset(width),
+        width <= 760 ? Math.round(height * 0.31) : Math.round(height * 0.07)
       ],
       altitude: width <= 760 ? 1.82 : 0.92,
       lng: 20
     };
+  }
+
+  function exploreHorizontalOffset(width) {
+    if (width <= 760) return 0;
+    const wordmarkText = $(".wordmark > span:last-child");
+    const leftBoundary = wordmarkText?.getBoundingClientRect().left || Math.round(width * 0.06);
+    const sheetStyles = window.getComputedStyle(els.sheet);
+    const panelWidth = Number.parseFloat(sheetStyles.width) || 300;
+    const panelRight = Number.parseFloat(sheetStyles.right) || 0;
+    // 地球中心 = OpenWork 文字起始线与结果面板左边界的中点。
+    return Math.round((leftBoundary - panelWidth - panelRight) / 2);
   }
 
   function easeOutExpo(progress) {
@@ -1357,7 +1464,8 @@
         .polygonCapMaterial(landMaterial)
         .polygonSideColor(countrySideColor)
         .polygonStrokeColor(() => "rgba(255,255,255,0.96)")
-        .polygonLabel(countryLabel)
+        // 国家标签由 Globe.gl 放在画布内层，位于地球边缘时会被球体遮挡；保留悬停高亮与点击筛选，不显示该标签。
+        .polygonLabel(() => "")
         .polygonsTransitionDuration(reducedMotion ? 0 : 520)
         .pointsData([])
         .pointLat("mapLat")
@@ -1366,7 +1474,7 @@
         .pointRadius(pointRadius)
         .pointColor(pointColor)
         .pointResolution(isTouch ? 8 : 11)
-        .pointLabel(tooltip)
+        .pointLabel(() => "")
         .ringsData([])
         .ringLat("mapLat")
         .ringLng("mapLng")
@@ -1379,11 +1487,11 @@
         .objectAltitude(() => 0.0085)
         .objectFacesSurface(true)
         .objectThreeObject(markerObject)
-        .objectLabel(tooltip)
+        .objectLabel(() => "")
         .onObjectHover(hoverJob)
-        .onObjectClick(selectPointJob)
+        .onObjectClick(() => {})
         .onPointHover(hoverJob)
-        .onPointClick(selectPointJob)
+        .onPointClick(() => {})
         .onPolygonHover((feature) => els.globe.classList.toggle("is-country-hovered", Boolean(feature)))
         .onPolygonClick(selectCountry)
         .onGlobeClick(clearFromGlobe)
@@ -1436,13 +1544,14 @@
         exitExplore("push");
       }
     });
-    els.search.addEventListener("input", () => updateSearchState(true));
+    els.search.addEventListener("input", () => {
+      state.query = els.search.value;
+      syncUrl();
+    });
     els.search.addEventListener("focus", openResults);
     els.form.addEventListener("submit", (event) => {
       event.preventDefault();
-      const top = matchingJobs()[0];
-      if (top) selectJob(top);
-      closeResults();
+      refreshSearch();
     });
     els.closeResults.addEventListener("click", closeResults);
     els.cardClose.addEventListener("click", () => clearSelection());
@@ -1462,11 +1571,26 @@
       stopAutoRotation();
       scheduleAutoRotation();
     };
-    els.globe.addEventListener("pointerdown", stopAutoRotation, { passive: true });
-    els.globe.addEventListener("pointermove", noteGlobeActivity, { passive: true });
+    els.globe.addEventListener("pointerdown", () => {
+      stopAutoRotation();
+      dismissJobDetails();
+    }, { passive: true });
+    els.globe.addEventListener("pointermove", (event) => {
+      state.pointer = { clientX: event.clientX, clientY: event.clientY };
+      noteGlobeActivity();
+    }, { passive: true });
     els.globe.addEventListener("pointerup", () => scheduleAutoRotation(), { passive: true });
     els.globe.addEventListener("pointerleave", () => scheduleAutoRotation(), { passive: true });
     els.globe.addEventListener("wheel", noteGlobeActivity, { passive: true });
+    els.popover.addEventListener("pointerenter", () => window.clearTimeout(state.popoverTimer));
+    els.popover.addEventListener("pointerleave", scheduleMapPopoverHide);
+    document.addEventListener("pointerdown", (event) => {
+      if (!state.selected) return;
+      const target = event.target;
+      if (els.card.contains(target) || els.sheet.contains(target) || els.popover.contains(target)
+        || els.search.contains(target) || els.globe.contains(target)) return;
+      dismissJobDetails();
+    });
     window.addEventListener("resize", resizeGlobe, { passive: true });
     if (!xhsMode) {
       window.addEventListener("popstate", () => {
@@ -1483,7 +1607,8 @@
     }
     window.addEventListener("keydown", (event) => {
       if (event.key === "Escape") {
-        if (state.resultsOpen) closeResults();
+        if (!els.popover.hidden) hideMapPopover();
+        else if (state.resultsOpen) closeResults();
         else if (state.selected) clearSelection();
         else if (state.view === "explore") exitExplore("push");
       } else if (state.view === "explore" && state.selected && !state.resultsOpen && document.activeElement !== els.search) {

@@ -1,0 +1,32 @@
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
+import { cleanText, classifyWorkMode } from "../jobs/core.mjs";
+
+const execFileAsync = promisify(execFile);
+
+function field(details, start, endNames) {
+  const ends = endNames.map((name) => name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|");
+  return details.match(new RegExp(`${start.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*(.*?)\\s+(?=${ends})`, "s"))?.[1]?.trim() || "";
+}
+
+export const anySearchCollector = {
+  name: "AnySearch",
+  enabled() { return Boolean(process.env.ANYSEARCH_CLI); },
+  async collect({ keyword, rangeDays }) {
+    const cli = process.env.ANYSEARCH_CLI;
+    if (!cli) throw new Error("未配置 ANYSEARCH_CLI");
+    const { stdout } = await execFileAsync("node", [cli, "search", `${keyword} jobs posted in the last ${rangeDays} days worldwide`, "--domain", "business", "--sub_domain", "business.jobs", "--max_results", "20"], { timeout: 45000, maxBuffer: 12 * 1024 * 1024 });
+    const headings = [...stdout.matchAll(/^### \d+\. (.+)$/gm)];
+    return headings.flatMap((heading, index) => {
+      const block = stdout.slice(heading.index + heading[0].length, headings[index + 1]?.index ?? stdout.length);
+      const sourceUrl = block.match(/- \*\*URL\*\*: (\S+)/)?.[1];
+      const postedAt = block.match(/Posted:\s*(\d{4}-\d{2}-\d{2})/)?.[1];
+      if (!sourceUrl || !postedAt) return [];
+      const title = heading[1].replace(/\s+@\s+.*$/, "").trim();
+      const location = field(block, "Location:", ["Salary:", "Contract:", "Category:", "Posted:"]) || "地点见职位页";
+      return [{ id: `anysearch-${encodeURIComponent(sourceUrl)}`, title, company: field(block, "Company:", ["Location:"]) || "公开招聘团队", location,
+        workMode: classifyWorkMode(`${title} ${location} ${block}`), date: postedAt, source: "AnySearch", sourceUrl,
+        salary: field(block, "Salary:", ["Contract:", "Category:", "Posted:"]), detail: cleanText(block) }];
+    });
+  }
+};
