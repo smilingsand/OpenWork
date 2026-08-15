@@ -1,8 +1,8 @@
 const WORK_MODES = new Set(["all", "remote", "onsite"]);
-const RANGE_DAYS = new Set([1, 3, 7, 30]);
+const RANGE_DAYS = new Set([1, 3, 7, 14, 30]);
 
 export function createWindow(rangeDays, now = new Date()) {
-  if (!RANGE_DAYS.has(rangeDays)) throw new Error("rangeDays 仅支持 1、3、7、30");
+  if (!RANGE_DAYS.has(rangeDays)) throw new Error("rangeDays 仅支持 1、3、7、14、30");
   const until = new Date(now);
   until.setUTCHours(23, 59, 59, 999);
   const since = new Date(until);
@@ -17,7 +17,7 @@ export function validateSearchRequest(input = {}) {
   const filters = input.filters || {};
   const rangeDays = Number(filters.rangeDays ?? 30);
   const workMode = String(filters.workMode ?? "all");
-  if (!RANGE_DAYS.has(rangeDays)) throw new Error("时间范围仅支持 1、3、7、30 天");
+  if (!RANGE_DAYS.has(rangeDays)) throw new Error("时间范围仅支持 1、3、7、14、30 天");
   if (!WORK_MODES.has(workMode)) throw new Error("工作方式仅支持 all、remote、onsite");
   return { keyword, rangeDays, workMode, ...createWindow(rangeDays) };
 }

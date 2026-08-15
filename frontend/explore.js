@@ -122,7 +122,9 @@
     resultEmpty: $("#result-empty"),
     closeResults: $("#close-results"),
     rangeDays: $("#range-days"),
+    rangeDaysMenu: $("#range-days-menu"),
     workMode: $("#work-mode"),
+    workModeMenu: $("#work-mode-menu"),
     card: $("#job-card"),
     cardPrev: $("#card-prev"),
     cardNext: $("#card-next"),
@@ -291,8 +293,10 @@
 
   function renderResults() {
     const result = matchingJobs();
-    const visible = result.slice(0, 20);
-    els.count.textContent = activeSearch() ? `${result.length} 个` : "";
+    const visible = result;
+    // 输入框数字代表本次关键词检索的总结果；国家筛选只影响地图和右侧列表。
+    els.count.textContent = activeSearch() ? `${jobs.length} 个` : "";
+    els.count.disabled = !activeSearch() || jobs.length === 0;
     els.resultLabel.textContent = activeSearch()
       ? state.selectedCountryKey
         ? `${state.selectedCountryName} · ${result.length} 个岗位`
@@ -315,14 +319,46 @@
   }
 
   function openResults() {
+    if (!matchingJobs().length) {
+      closeResults();
+      return;
+    }
     state.resultsOpen = true;
     els.sheet.hidden = false;
+    els.count.setAttribute("aria-expanded", "true");
+    els.count.title = "收起岗位列表";
     renderResults();
   }
 
   function closeResults() {
     state.resultsOpen = false;
     els.sheet.hidden = true;
+    els.count.setAttribute("aria-expanded", "false");
+    els.count.title = "展开岗位列表";
+  }
+
+  function closeFilterMenus() {
+    [[els.rangeDays, els.rangeDaysMenu], [els.workMode, els.workModeMenu]].forEach(([trigger, menu]) => {
+      trigger.setAttribute("aria-expanded", "false");
+      menu.hidden = true;
+    });
+  }
+
+  function bindFilterSelect(trigger, menu) {
+    trigger.addEventListener("click", () => {
+      const willOpen = menu.hidden;
+      closeFilterMenus();
+      menu.hidden = !willOpen;
+      trigger.setAttribute("aria-expanded", String(willOpen));
+    });
+    $$("button[data-value]", menu).forEach((option) => {
+      option.addEventListener("click", () => {
+        trigger.dataset.value = option.dataset.value;
+        $("span", trigger).textContent = option.textContent;
+        $$("button[data-value]", menu).forEach((item) => item.setAttribute("aria-selected", String(item === option)));
+        closeFilterMenus();
+      });
+    });
   }
 
   function syncUrl(mode = "replace") {
@@ -358,12 +394,14 @@
       return;
     }
     state.query = keyword;
+    closeResults();
     els.count.textContent = "检索中…";
+    els.count.disabled = true;
     try {
       const created = await fetch("/api/searches", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ keyword, filters: { rangeDays: Number(els.rangeDays.value), workMode: els.workMode.value } })
+        body: JSON.stringify({ keyword, filters: { rangeDays: Number(els.rangeDays.dataset.value), workMode: els.workMode.dataset.value } })
       }).then((response) => response.json());
       if (!created.taskId) throw new Error(created.error || "无法创建搜索任务");
       let task;
@@ -380,13 +418,16 @@
       refreshCountryJobAssignments();
       renderResults();
       refreshGlobePoints();
-      openResults();
-      els.count.textContent = `${jobs.length} 个`;
+      if (jobs.length) openResults();
+      else closeResults();
+      els.count.textContent = jobs.length ? `${jobs.length} 个` : "";
+      els.count.disabled = jobs.length === 0;
       els.resultLabel.textContent = task.status === "partial" ? `找到 ${jobs.length} 个岗位（部分来源不可用）` : `找到 ${jobs.length} 个岗位`;
     } catch (error) {
       els.count.textContent = "检索失败";
+      els.count.disabled = true;
       els.resultLabel.textContent = error.message || "刷新失败，请稍后重试";
-      openResults();
+      closeResults();
     } finally {
     }
   }
@@ -1547,12 +1588,26 @@
     els.search.addEventListener("input", () => {
       state.query = els.search.value;
       syncUrl();
+      closeResults();
+      els.count.textContent = "";
+      els.count.disabled = true;
     });
-    els.search.addEventListener("focus", openResults);
+    els.search.addEventListener("focus", closeResults);
+    els.count.addEventListener("click", () => {
+      if (state.selectedCountryKey) {
+        clearSelection(false);
+        openResults();
+        return;
+      }
+      if (state.resultsOpen) closeResults();
+      else openResults();
+    });
     els.form.addEventListener("submit", (event) => {
       event.preventDefault();
       refreshSearch();
     });
+    bindFilterSelect(els.rangeDays, els.rangeDaysMenu);
+    bindFilterSelect(els.workMode, els.workModeMenu);
     els.closeResults.addEventListener("click", closeResults);
     els.cardClose.addEventListener("click", () => clearSelection());
     els.cardPrev.addEventListener("click", () => cycleFeatured(-1));
@@ -1585,8 +1640,9 @@
     els.popover.addEventListener("pointerenter", () => window.clearTimeout(state.popoverTimer));
     els.popover.addEventListener("pointerleave", scheduleMapPopoverHide);
     document.addEventListener("pointerdown", (event) => {
-      if (!state.selected) return;
       const target = event.target;
+      if (!$(".header-filters").contains(target)) closeFilterMenus();
+      if (!state.selected) return;
       if (els.card.contains(target) || els.sheet.contains(target) || els.popover.contains(target)
         || els.search.contains(target) || els.globe.contains(target)) return;
       dismissJobDetails();

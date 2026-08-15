@@ -52,7 +52,8 @@ input:focus-visible {
 
 button svg,
 a svg,
-label svg {
+label svg,
+.search-input-wrap > svg {
   width: 20px;
   height: 20px;
   fill: none;
@@ -760,11 +761,21 @@ label svg {
 .search-count {
   flex: 0 0 auto;
   min-width: 46px;
+  padding: 0;
+  border: 0;
   color: var(--ink-faint);
+  background: transparent;
+  font-family: inherit;
   font-size: 10px;
   text-align: right;
   white-space: nowrap;
+  cursor: pointer;
 }
+
+.search-count:hover:not(:disabled),
+.search-count:focus-visible:not(:disabled) { color: var(--ink); }
+.search-count:focus-visible { outline: 2px solid rgba(63, 111, 223, 0.45); outline-offset: 3px; border-radius: 5px; }
+.search-count:disabled { cursor: default; }
 
 .result-sheet {
   width: min(560px, calc(100vw - 40px));
@@ -1072,15 +1083,65 @@ label svg {
   margin-left: auto;
 }
 
-.header-filters select {
+.filter-select { position: relative; }
+
+.filter-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 9px;
   min-height: 34px;
-  padding: 0 28px 0 11px;
+  min-width: 112px;
+  padding: 0 11px;
   border: 1px solid rgba(36, 48, 52, 0.16);
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.82);
   color: #243034;
-  font: 600 12px/1 inherit;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: normal;
+  cursor: pointer;
 }
+
+.filter-trigger svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; }
+.filter-trigger[aria-expanded="true"] { border-color: rgba(36, 48, 52, 0.32); background: #fff; }
+
+.filter-menu {
+  position: absolute;
+  z-index: 80;
+  top: calc(100% + 7px);
+  right: 0;
+  display: grid;
+  min-width: 100%;
+  padding: 5px;
+  border: 1px solid rgba(36, 48, 52, 0.13);
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 12px 32px rgba(32, 43, 46, 0.14);
+}
+
+.filter-menu[hidden] { display: none; }
+
+.filter-menu button {
+  min-height: 32px;
+  padding: 0 9px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: #243034;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: normal;
+  text-align: left;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.filter-menu button:hover,
+.filter-menu button:focus-visible,
+.filter-menu button[aria-selected="true"] { background: rgba(36, 48, 52, 0.075); }
 
 .app-header .reset-view {
   position: static;
@@ -1519,6 +1580,8 @@ label svg {
   }
   .app-page .search-input-wrap svg { width: 19px; height: 19px; }
   .app-page .search-input-wrap input { height: 44px; padding: 0 8px; font-size: 12px; }
+  .app-page .filter-trigger,
+  .app-page .filter-menu button { font-size: 12px; }
   .app-page .search-count { display: none; }
   .app-page .result-sheet {
     top: auto;

@@ -33,8 +33,18 @@
           <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="M4 11h14M11 4c2.2 2.1 2.2 11.9 0 14M8 4.7c-1.8 2.1-1.8 11.5 0 13.6M17.2 16.7l4 3.8M18 20.5l1-3.2 3.1-.9" /></svg>
         </button>
         <div class="header-filters explore-reveal" aria-label="岗位筛选条件">
-          <select id="range-days" aria-label="时间范围"><option value="1">过去 1 天</option><option value="3">过去 3 天</option><option value="7">过去 1 周</option><option value="30" selected>过去 1 月</option></select>
-          <select id="work-mode" aria-label="工作方式"><option value="all" selected>全部</option><option value="remote">远程</option><option value="onsite">到岗</option></select>
+          <div class="filter-select">
+            <button class="filter-trigger" id="range-days" type="button" data-value="30" aria-haspopup="listbox" aria-expanded="false"><span id="range-days-label">过去 1 月</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 9 5 5 5-5" /></svg></button>
+            <div class="filter-menu" id="range-days-menu" role="listbox" aria-label="时间范围" hidden>
+              <button type="button" role="option" data-value="1">过去 1 天</button><button type="button" role="option" data-value="3">过去 3 天</button><button type="button" role="option" data-value="7">过去 1 周</button><button type="button" role="option" data-value="14">过去 2 周</button><button type="button" role="option" data-value="30" aria-selected="true">过去 1 月</button>
+            </div>
+          </div>
+          <div class="filter-select">
+            <button class="filter-trigger" id="work-mode" type="button" data-value="all" aria-haspopup="listbox" aria-expanded="false"><span id="work-mode-label">全部</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 9 5 5 5-5" /></svg></button>
+            <div class="filter-menu" id="work-mode-menu" role="listbox" aria-label="工作方式" hidden>
+              <button type="button" role="option" data-value="all" aria-selected="true">全部</button><button type="button" role="option" data-value="remote">远程</button><button type="button" role="option" data-value="onsite">到岗</button>
+            </div>
+          </div>
         </div>
       </header>
 
@@ -105,11 +115,11 @@
       <section class="search-zone explore-reveal" aria-label="搜索工作">
 
         <form class="search-dock" id="search-form" role="search">
-          <label class="search-input-wrap" for="job-search">
+          <div class="search-input-wrap">
             <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6" /><path d="m16 16 4 4" /></svg>
-            <input id="job-search" type="search" autocomplete="off" placeholder="搜索职位、公司或城市" aria-controls="result-sheet" />
-            <span class="search-count" id="search-count" aria-live="polite"></span>
-          </label>
+            <input id="job-search" type="search" autocomplete="off" placeholder="搜索职位、公司或城市" aria-controls="result-sheet" aria-label="搜索职位、公司或城市" />
+            <button class="search-count" id="search-count" type="button" aria-live="polite" aria-controls="result-sheet" aria-expanded="false" title="展开岗位列表" disabled></button>
+          </div>
         </form>
       </section>
 

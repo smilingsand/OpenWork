@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { once } from "node:events";
 import { createApp } from "../backend/src/app.mjs";
+import { validateSearchRequest } from "../backend/src/jobs/core.mjs";
 import { parseLocationCandidate, selectGeocodeResult } from "../backend/src/jobs/locations.mjs";
 
 assert.deepEqual(parseLocationCandidate("Taiwan, Jiangsu, China"), { kind: "region" });
@@ -15,6 +16,7 @@ assert.equal(selectGeocodeResult([
   { name: "London", admin1: "England", country: "United Kingdom", country_code: "GB", feature_code: "PPLC", latitude: 51.5, longitude: -0.12 },
   { name: "London", admin1: "Ontario", country: "Canada", country_code: "CA", feature_code: "PPL", latitude: 42.98, longitude: -81.25 }
 ], parseLocationCandidate("London")), null);
+assert.equal(validateSearchRequest({ keyword: "AI", filters: { rangeDays: 14, workMode: "all" } }).rangeDays, 14);
 
 const app = createApp();
 app.listen(0, "127.0.0.1");
