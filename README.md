@@ -69,6 +69,32 @@ docs/                        架构、数据源和配置补充说明
 
 ### 获取代码并安装依赖
 
+#### 方式一：只克隆当前开发线（推荐）
+
+此方式只下载并检出 `chris-changes`，不会在本地创建或下载 `main` 等其它远程分支，适合只使用或开发当前 OpenWork 系统。
+
+```powershell
+git clone --branch chris-changes --single-branch <你的仓库地址> OpenWork
+Set-Location OpenWork
+npm install
+```
+
+如不需要完整 Git 历史，可增加 `--depth 1` 以减少下载量：
+
+```powershell
+git clone --branch chris-changes --single-branch --depth 1 <你的仓库地址> OpenWork
+```
+
+此方式完成后，当前分支已是 `chris-changes`，不需要再执行 `git switch chris-changes`。日后如确实需要本地 `main`，可执行：
+
+```powershell
+git fetch origin main:main
+```
+
+#### 方式二：克隆完整仓库后切换分支
+
+此方式会下载远程仓库的全部分支引用，适合需要比较历史基线、参考分支或同时维护多个分支的开发者。
+
 ```powershell
 git clone <你的仓库地址> OpenWork
 Set-Location OpenWork
@@ -76,7 +102,7 @@ git switch chris-changes
 npm install
 ```
 
-`chris-changes` 是当前开发线；请不要在 `main` 上直接开发。若克隆的远程仓库默认未检出该分支，可先执行 `git fetch origin`，再使用 `git switch --track origin/chris-changes`。
+`chris-changes` 是当前开发线；请不要在 `main` 上直接开发。若完整克隆后本地尚未检出该分支，可执行 `git switch --track origin/chris-changes`。
 
 ## 配置
 

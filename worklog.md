@@ -2,6 +2,7 @@
 
 ## 2026-08-25
 
+- 正式 README 的安装章节新增两种获取代码方式：推荐使用 `git clone --branch chris-changes --single-branch` 仅克隆当前开发线；同时保留完整克隆后切换分支的方式及适用场景。
 - 项目文档从“原项目 fork 差异说明”调整为独立产品文档体系：原作者 README 原文改名为 `README_Upstream.md` 保留，原 `README_chris_changes.md` 升级并改名为正式 `README.md`。
 - 将 `worklog_chris_changes.md` 改名为根目录正式变更日志 `worklog.md`；不再维护带分支名的 README/日志副本。
 - 重写 `README.md`，补充当前动态查询功能、系统结构、来源能力、安装、配置、启动/关闭、关键词语法、强弱相关、API、限制与维护入口。

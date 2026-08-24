@@ -16,6 +16,7 @@ OpenWork 是一个独立维护的动态岗位发现项目。它受到 `huangbai-
 - 当前开发线：`chris-changes`。所有新功能、修复和文档更新必须在该分支完成。
 - `main` 保留为历史稳定基线，不直接开发，也不因日常功能修改而改动。
 - `feature/openwork-visual-refinement` 仅作参考；可选择性借鉴，未经明确要求不得整体合并。
+- 新环境默认采用 `git clone --branch chris-changes --single-branch <repo> OpenWork`；只有需要比较历史基线或其它分支时才完整克隆。
 - 修改前确认当前分支；不得 force-push、硬重置、改写历史、删除远程分支或丢弃用户改动。
 - 不要将用户未要求的 `.gitignore`、锁文件或无关改动一并提交。
 
