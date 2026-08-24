@@ -103,16 +103,3 @@ export function normalizeJob(raw, context) {
     evidence: raw.evidence || "职位页"
   };
 }
-
-export function filterAndDedupe(jobs, query, { matchKeyword = true } = {}) {
-  const unique = new Map();
-  for (const raw of jobs) {
-    const job = normalizeJob(raw, query);
-    if (!job || !isWithinWindow(job.postedAt, query.since, query.until)) continue;
-    if (matchKeyword && !matchesKeyword(job, query.keyword)) continue;
-    if (query.workMode !== "all" && job.workMode !== query.workMode) continue;
-    const key = `${job.company}|${job.title}|${job.location}`.toLocaleLowerCase("en");
-    if (!unique.has(key)) unique.set(key, job);
-  }
-  return [...unique.values()].sort((a, b) => b.postedAt.localeCompare(a.postedAt) || b.attention - a.attention);
-}

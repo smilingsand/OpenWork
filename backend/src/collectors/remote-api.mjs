@@ -12,6 +12,7 @@ async function getJson(url, signal) {
 export const remoteCollectors = [
   {
     name: "Remote OK",
+    keywordSearch: false,
     async collect({ signal }) {
       const data = await getJson("https://remoteok.com/api", signal);
       return capResults((Array.isArray(data) ? data.slice(1) : []).map((job) => ({
@@ -24,6 +25,7 @@ export const remoteCollectors = [
   },
   {
     name: "Remotive",
+    keywordSearch: false,
     async collect({ signal }) {
       const data = await getJson(`https://remotive.com/api/remote-jobs?limit=${config.remote.remotiveMaxResults}`, signal);
       return capResults((data.jobs || []).map((job) => ({
@@ -35,6 +37,7 @@ export const remoteCollectors = [
   },
   {
     name: "Jobicy",
+    keywordSearch: false,
     async collect({ signal }) {
       const data = await getJson(`https://jobicy.com/api/v2/remote-jobs?count=${config.remote.jobicyMaxResults}`, signal);
       return capResults((data.jobs || []).map((job) => ({
@@ -46,6 +49,7 @@ export const remoteCollectors = [
   },
   {
     name: "Himalayas",
+    keywordSearch: false,
     async collect({ signal }) {
       const first = await getJson("https://himalayas.app/jobs/api?offset=0", signal);
       const pages = [first];

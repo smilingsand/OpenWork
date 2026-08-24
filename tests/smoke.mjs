@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { once } from "node:events";
 import { createApp } from "../backend/src/app.mjs";
-import { filterAndDedupe, matchesKeyword, validateSearchRequest } from "../backend/src/jobs/core.mjs";
+import { matchesKeyword, validateSearchRequest } from "../backend/src/jobs/core.mjs";
+import { prepareSearchResults } from "../backend/src/jobs/postprocess.mjs";
 import { parseLocationCandidate, selectGeocodeResult } from "../backend/src/jobs/locations.mjs";
 import { buildLinkedInSearchUrl, parseLinkedInDeclaredResultCount, parseLinkedInSearchResults } from "../backend/src/collectors/linkedin.mjs";
 import { parseIni } from "../backend/src/config.mjs";
@@ -40,9 +41,12 @@ const linkedInCandidates = [
   { id: "strong", title: "TM1 Developer", company: "Example", location: "Sydney", date: "2026-08-20", source: "LinkedIn" },
   { id: "weak", title: "Planning Analytics Developer", company: "Example Two", location: "Sydney", date: "2026-08-20", source: "LinkedIn" }
 ];
-const linkedInUnfiltered = filterAndDedupe(linkedInCandidates, linkedInQuery, { matchKeyword: false });
-assert.equal(linkedInUnfiltered.length, 2);
-assert.equal(linkedInUnfiltered.filter((job) => matchesKeyword(job, linkedInQuery.keyword)).length, 1);
+const linkedInPrepared = prepareSearchResults([{ jobs: linkedInCandidates, keywordSearch: true }], linkedInQuery);
+assert.equal(linkedInPrepared.strongCandidates.length, 1);
+assert.equal(linkedInPrepared.weakCandidates.length, 1);
+const remotePrepared = prepareSearchResults([{ jobs: linkedInCandidates, keywordSearch: false }], linkedInQuery);
+assert.equal(remotePrepared.strongCandidates.length, 1);
+assert.equal(remotePrepared.weakCandidates.length, 0);
 assert.equal(validateSearchRequest({ keyword: "AI", filters: { rangeDays: 30, source: "anysearch" } }).workMode, "all");
 assert.equal(validateSearchRequest({ keyword: "AI", filters: { rangeDays: 30, source: "linkedin" } }).source, "linkedin");
 const linkedInSearch = new URL(buildLinkedInSearchUrl({ keyword: '"data analysis" sydney', rangeDays: 7 }));

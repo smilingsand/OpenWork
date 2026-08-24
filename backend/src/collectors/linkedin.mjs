@@ -72,6 +72,7 @@ async function collectPage(query, start) {
 
 export const linkedInCollector = {
   name: "LinkedIn",
+  keywordSearch: true,
   async collect(query) {
     const first = await collectPage(query, 0);
     const targetCount = Math.min(config.linkedin.maxResults, first.declaredCount ?? config.linkedin.maxResults);

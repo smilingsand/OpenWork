@@ -17,6 +17,7 @@ async function getText(url, signal) {
 export const rssCollectors = [
   {
     name: "We Work Remotely",
+    keywordSearch: false,
     async collect({ signal }) {
       const xmls = await Promise.all(feeds.map((feed) => getText(`https://weworkremotely.com/categories/${feed}.rss`, signal)));
       return capResults(xmls.flatMap((xml, feedIndex) => [...xml.matchAll(/<item>([\s\S]*?)<\/item>/gi)].map((match, index) => {
@@ -36,6 +37,7 @@ export const rssCollectors = [
   },
   {
     name: "NoDesk",
+    keywordSearch: false,
     async collect({ signal }) {
       const xml = await getText("https://nodesk.co/remote-jobs/index.xml", signal);
       return capResults([...xml.matchAll(/<item>([\s\S]*?)<\/item>/gi)].map((match, index) => {

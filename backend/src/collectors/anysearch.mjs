@@ -12,6 +12,7 @@ function field(details, start, endNames) {
 
 export const anySearchCollector = {
   name: "AnySearch (Adzuna)",
+  keywordSearch: true,
   enabled() { return Boolean(config.anySearch.cliPath); },
   async collect({ keyword }) {
     const cli = config.anySearch.cliPath;

@@ -1,4 +1,11 @@
-# chris-changes 工作日志
+# OpenWork 工作日志
+
+## 2026-08-25
+
+- 项目文档从“原项目 fork 差异说明”调整为独立产品文档体系：原作者 README 原文改名为 `README_Upstream.md` 保留，原 `README_chris_changes.md` 升级并改名为正式 `README.md`。
+- 将 `worklog_chris_changes.md` 改名为根目录正式变更日志 `worklog.md`；不再维护带分支名的 README/日志副本。
+- 重写 `README.md`，补充当前动态查询功能、系统结构、来源能力、安装、配置、启动/关闭、关键词语法、强弱相关、API、限制与维护入口。
+- 新增 `docs/architecture.md`、`docs/configuration.md`、`docs/data-sources.md`，并同步 `AGENTS.md`、Codex 项目记忆和交接文档；将 `settings.ini` 确认为非秘密默认配置的权威文件。
 
 ## 2026-08-14
 
@@ -50,4 +57,9 @@
 - LinkedIn connector 改由公共解析项构造 URL 专用表达式：标准输入 `"data analytics" sydney` 会转换为 `"data analytics" AND sydney` 后再编码至 `keywords`，符合 LinkedIn Jobs URL 的布尔关键词形式。
 - 在 `settings.ini` 的 `[linkedin]` 中新增默认 `geo_id = 92000000`（Worldwide），connector 每次请求均加入 `geoId`，避免匿名 LinkedIn 搜索默认美国。`Australia`、`Sydney` 等用户输入仍作为 `keywords` 关键词传入。
 - LinkedIn connector 增加 `start` 偏移分页：优先采用公开页明确声明的结果数，并受 `[linkedin].max_results` 安全上限与 `page_size` 控制；不确定的 `1,000+` 计数不会突破安全上限，重复职位按 LinkedIn 职位 ID 去重。
-- LinkedIn 结果分为强/弱相关：强相关为公开卡片标题、公司、地点等可解析字段命中关键词；弱相关为 LinkedIn 已召回但未通过该本地直接匹配的岗位。API 返回两组，前端默认显示强相关；点击搜索框右侧“强/弱”数量可切换列表和地图点。Remote、AnySearch 暂全部归为强相关。
+- LinkedIn 结果分为强/弱相关：强相关为公开卡片标题、公司、地点等可解析字段命中关键词；弱相关为 LinkedIn 已召回但未通过该本地直接匹配的岗位。API 返回两组，前端默认显示强相关；点击搜索框右侧“强/弱”数量可切换列表和地图点。
+
+## 2026-08-25
+
+- 新增公共 `backend/src/jobs/postprocess.mjs`。所有 connector 先将各自 JSON、RSS、HTML 或 CLI 输出初步解析为 `RawJob`，再由该模块统一完成标准化、日期/工作方式过滤、去重、强弱相关分组及地点增强。
+- connector 明确声明 `keywordSearch` 能力：LinkedIn、AnySearch 为 `true`，其上游已收到关键词，未直接命中的候选进入弱相关；Remote 来源为 `false`，因当前只抓取近期 feed，未命中关键词的岗位不作为弱相关返回。移除了 `SearchService` 中按来源分叉的强弱相关处理。
