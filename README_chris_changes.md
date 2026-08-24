@@ -21,10 +21,10 @@ data/cache/ → 未来可选的运行时缓存目录
 ## 设计与数据流
 
 ```text
-职业关键词 + 时间范围 + 工作方式
+职业关键词 + 时间范围 + 岗位来源
   → POST /api/searches
   → 查询任务（独立来源超时/容错）
-  → 标准化、日期过滤、工作方式判定、关键词过滤、去重
+  → 标准化、日期过滤、关键词过滤、去重
   → 保守地点处理（城市精确匹配、地区上下文校验、歧义不落点）
   → 前端列表和 3D 地球展示
 ```
@@ -35,19 +35,20 @@ data/cache/ → 未来可选的运行时缓存目录
 
 - `keyword`：必填职业关键词。
 - `filters.rangeDays`：仅允许 `1`、`3`、`7`、`14`、`30`（过去 1 天、3 天、1 周、2 周、1 月）。
-- `filters.workMode`：`all`、`remote`、`onsite`。
+- `filters.source`：`remote`、`anysearch`。页面显示为 `Remote` 与 `AnySearch (Adzuna)`；LinkedIn、SEEK 目前明确标为暂未接入。
 
 领域模型使用 `workMode`，并预留 `hybrid` 与 `unknown`。历史 `remote: false` 不自动视为到岗职位。
 
 ## 当前完成度
 
-- 已完成：目录迁移、移除历史岗位数据和小红书离线构建链路、Node 原生 HTTP 服务、异步任务 API、内存缓存、来源级容错、远程/通用来源初步采集器、动态地点处理、前端时间/工作方式控件和查询页交互。
-- 待验证/补充：真实来源端到端验证、浏览器自动化验证、部署说明与可选的共享离线快照入口。
+- 已完成：目录迁移、移除历史岗位数据和小红书离线构建链路、Node 原生 HTTP 服务、异步任务 API、内存缓存、来源级容错、远程/AnySearch 来源采集器、动态地点处理、前端时间/来源控件和查询页交互。
+- 已验证：AnySearch (Adzuna) 端到端检索。以 `AI`、过去 1 月测试，原始 10 条中 1 条薪资统计页被过滤，保留 9 条有效岗位；过去 1 周保留 5 条。
+- 待验证/补充：Remote 来源组端到端验证、浏览器自动化验证、部署说明与可选的共享离线快照入口。
 
 ## 页面交互约定
 
-- 首页不显示固定时间范围；进入查询页后才能选择时间范围和工作方式。
-- 时间与工作方式使用页面自绘浅色下拉菜单，避免系统原生下拉主题闪现。
+- 首页不显示固定时间范围；进入查询页后才能选择时间范围和岗位来源。
+- 时间与岗位来源使用页面自绘浅色下拉菜单，避免系统原生下拉主题闪现。
 - 输入关键词后按 Enter 发起查询；输入、检索中或零结果时不显示右侧列表，成功结果会整体替换旧结果。
 - 右侧列表是当前查询结果并在面板内滚动展示全部岗位；点击岗位打开详情卡，按钮依次为“查看详情”和“前往页面”。
 - 搜索框右侧岗位数固定表示本次关键词检索的全量结果。列表收起后可点击该数字重新展开；若已按国家筛选，点击该数字会清除国家筛选并展示全量列表。
@@ -57,10 +58,11 @@ data/cache/ → 未来可选的运行时缓存目录
 
 ## 数据来源与容错
 
-- 远程来源：Remote OK、Remotive、Jobicy、Himalayas、We Work Remotely、NoDesk。
-- 通用来源：Arbeitnow、可选 AnySearch。
+- `Remote`：Remote OK、Remotive、Jobicy、Himalayas、We Work Remotely、NoDesk，以及 Arbeitnow 的明确远程岗位。
+- `AnySearch (Adzuna)`：仅调用 AnySearch 的 `business.jobs` 结构化职位查询；当前测试结果主要来自 Adzuna，不能承诺永久只返回 Adzuna。
+- LinkedIn、SEEK：当前未接入，页面中禁用显示，不发起请求。
 - 每个来源独立执行；超时或失败仅标记该来源失败，查询可返回部分结果（`partial`）。
-- `AnySearch` 依赖本机 Node CLI，未配置时自动跳过。
+- 选择 `AnySearch (Adzuna)` 时依赖本机 Node CLI；未配置 `ANYSEARCH_CLI` 会返回明确配置错误。
 
 ## 本地命令
 
@@ -75,13 +77,13 @@ npm run dev
 可选环境变量：
 
 - `PORT`：服务端口，默认 `4173`。
-- `ANYSEARCH_CLI`：AnySearch Node CLI 的绝对路径；未配置时该来源自动跳过。
+- `ANYSEARCH_CLI`：AnySearch Node CLI 的绝对路径；仅在选择 `AnySearch (Adzuna)` 时需要。未配置时该来源查询会明确失败，不会退回其它来源。
 - `SOURCE_TIMEOUT_MS`：单来源超时，默认 20 秒。
 - `SEARCH_CACHE_TTL_MS`：查询缓存时长，默认 5 分钟。
 
 ## 注意事项
 
-- 当前动态检索尚未完成真实外部来源端到端验证，不能作为生产可用功能声明。
+- Remote 来源组尚未完成真实外部来源端到端验证，不能作为生产可用功能声明；AnySearch (Adzuna) 已完成一次公开岗位端到端验证。
 - 地点解析刻意采取保守策略；不可信地点不会显示地图点，这是预期的数据质量保护。
 - GitHub Pages 不能直接运行 Node 后端；部署时需要 Node 服务器或兼容的 Serverless 运行时。
 - 所有 chris 分支改动记入项目根目录的 `worklog_chris_changes.md`。

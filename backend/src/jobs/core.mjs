@@ -1,5 +1,6 @@
 const WORK_MODES = new Set(["all", "remote", "onsite"]);
 const RANGE_DAYS = new Set([1, 3, 7, 14, 30]);
+const SEARCH_SOURCES = new Set(["remote", "anysearch"]);
 
 export function createWindow(rangeDays, now = new Date()) {
   if (!RANGE_DAYS.has(rangeDays)) throw new Error("rangeDays 仅支持 1、3、7、14、30");
@@ -16,10 +17,12 @@ export function validateSearchRequest(input = {}) {
   if (!keyword) throw new Error("请输入职业关键词");
   const filters = input.filters || {};
   const rangeDays = Number(filters.rangeDays ?? 30);
-  const workMode = String(filters.workMode ?? "all");
+  const source = String(filters.source ?? "remote");
   if (!RANGE_DAYS.has(rangeDays)) throw new Error("时间范围仅支持 1、3、7、14、30 天");
-  if (!WORK_MODES.has(workMode)) throw new Error("工作方式仅支持 all、remote、onsite");
-  return { keyword, rangeDays, workMode, ...createWindow(rangeDays) };
+  if (!SEARCH_SOURCES.has(source)) throw new Error("岗位来源仅支持 remote、anysearch");
+  // workMode 继续作为岗位标准化字段；页面来源筛选不再直接暴露它。
+  const workMode = source === "remote" ? "remote" : "all";
+  return { keyword, rangeDays, source, workMode, ...createWindow(rangeDays) };
 }
 
 export function cleanText(value = "") {

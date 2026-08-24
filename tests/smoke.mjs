@@ -16,7 +16,11 @@ assert.equal(selectGeocodeResult([
   { name: "London", admin1: "England", country: "United Kingdom", country_code: "GB", feature_code: "PPLC", latitude: 51.5, longitude: -0.12 },
   { name: "London", admin1: "Ontario", country: "Canada", country_code: "CA", feature_code: "PPL", latitude: 42.98, longitude: -81.25 }
 ], parseLocationCandidate("London")), null);
-assert.equal(validateSearchRequest({ keyword: "AI", filters: { rangeDays: 14, workMode: "all" } }).rangeDays, 14);
+const remoteSearch = validateSearchRequest({ keyword: "AI", filters: { rangeDays: 14, source: "remote" } });
+assert.equal(remoteSearch.rangeDays, 14);
+assert.equal(remoteSearch.workMode, "remote");
+assert.equal(validateSearchRequest({ keyword: "AI", filters: { rangeDays: 30, source: "anysearch" } }).workMode, "all");
+assert.throws(() => validateSearchRequest({ keyword: "AI", filters: { rangeDays: 30, source: "linkedin" } }), /岗位来源/);
 
 const app = createApp();
 app.listen(0, "127.0.0.1");
@@ -31,7 +35,7 @@ assert.equal((await health.json()).status, "ok");
 const invalid = await fetch(`${baseUrl}/api/searches`, {
   method: "POST",
   headers: { "content-type": "application/json" },
-  body: JSON.stringify({ keyword: "", filters: { rangeDays: 30, workMode: "all" } })
+  body: JSON.stringify({ keyword: "", filters: { rangeDays: 30, source: "remote" } })
 });
 assert.equal(invalid.status, 400);
 

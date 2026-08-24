@@ -18,14 +18,17 @@ export class SearchService {
 
   async search(input, onProgress = () => {}) {
     const query = validateSearchRequest(input);
-    const cacheKey = JSON.stringify({ keyword: query.keyword.toLocaleLowerCase("zh-CN"), rangeDays: query.rangeDays, workMode: query.workMode });
+    const cacheKey = JSON.stringify({ keyword: query.keyword.toLocaleLowerCase("zh-CN"), rangeDays: query.rangeDays, source: query.source });
     const cached = this.cache.get(cacheKey);
     if (cached && cached.expiresAt > Date.now()) return { ...cached.result, cached: true };
 
     const collectors = [];
-    if (query.workMode !== "onsite") collectors.push(...remoteCollectors, ...rssCollectors);
-    collectors.push({ name: "Arbeitnow", collect: collectArbeitnow });
-    if (anySearchCollector.enabled()) collectors.push(anySearchCollector);
+    if (query.source === "remote") {
+      collectors.push(...remoteCollectors, ...rssCollectors, { name: "Arbeitnow", collect: collectArbeitnow });
+    } else {
+      if (!anySearchCollector.enabled()) throw new Error("未配置 AnySearch。请设置 ANYSEARCH_CLI 后重启后端服务。");
+      collectors.push(anySearchCollector);
+    }
     const sources = [];
     const batches = await Promise.all(collectors.map(async (collector) => {
       onProgress({ source: collector.name, state: "running" });
@@ -41,7 +44,7 @@ export class SearchService {
       }
     }));
     const jobs = await enrichLocations(filterAndDedupe(batches.flat(), query));
-    const result = { query: { keyword: query.keyword, filters: { rangeDays: query.rangeDays, workMode: query.workMode }, window: { since: query.since.toISOString(), until: query.until.toISOString() } }, jobs, sources, cached: false };
+    const result = { query: { keyword: query.keyword, filters: { rangeDays: query.rangeDays, source: query.source }, window: { since: query.since.toISOString(), until: query.until.toISOString() } }, jobs, sources, cached: false };
     this.cache.set(cacheKey, { expiresAt: Date.now() + CACHE_TTL_MS, result });
     return result;
   }

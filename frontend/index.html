@@ -39,10 +39,10 @@
               <button type="button" role="option" data-value="1">过去 1 天</button><button type="button" role="option" data-value="3">过去 3 天</button><button type="button" role="option" data-value="7">过去 1 周</button><button type="button" role="option" data-value="14">过去 2 周</button><button type="button" role="option" data-value="30" aria-selected="true">过去 1 月</button>
             </div>
           </div>
-          <div class="filter-select">
-            <button class="filter-trigger" id="work-mode" type="button" data-value="all" aria-haspopup="listbox" aria-expanded="false"><span id="work-mode-label">全部</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 9 5 5 5-5" /></svg></button>
-            <div class="filter-menu" id="work-mode-menu" role="listbox" aria-label="工作方式" hidden>
-              <button type="button" role="option" data-value="all" aria-selected="true">全部</button><button type="button" role="option" data-value="remote">远程</button><button type="button" role="option" data-value="onsite">到岗</button>
+          <div class="filter-select source-filter">
+            <button class="filter-trigger" id="source" type="button" data-value="remote" aria-haspopup="listbox" aria-expanded="false"><span id="source-label">Remote</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 9 5 5 5-5" /></svg></button>
+            <div class="filter-menu" id="source-menu" role="listbox" aria-label="岗位来源" hidden>
+              <button type="button" role="option" data-value="remote" aria-selected="true">Remote</button><button type="button" role="option" data-value="anysearch">AnySearch (Adzuna)</button><button type="button" role="option" disabled aria-disabled="true">LinkedIn（暂未接入）</button><button type="button" role="option" disabled aria-disabled="true">SEEK（暂未接入）</button>
             </div>
           </div>
         </div>

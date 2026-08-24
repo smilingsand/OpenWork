@@ -123,8 +123,8 @@
     closeResults: $("#close-results"),
     rangeDays: $("#range-days"),
     rangeDaysMenu: $("#range-days-menu"),
-    workMode: $("#work-mode"),
-    workModeMenu: $("#work-mode-menu"),
+    source: $("#source"),
+    sourceMenu: $("#source-menu"),
     card: $("#job-card"),
     cardPrev: $("#card-prev"),
     cardNext: $("#card-next"),
@@ -338,7 +338,7 @@
   }
 
   function closeFilterMenus() {
-    [[els.rangeDays, els.rangeDaysMenu], [els.workMode, els.workModeMenu]].forEach(([trigger, menu]) => {
+    [[els.rangeDays, els.rangeDaysMenu], [els.source, els.sourceMenu]].forEach(([trigger, menu]) => {
       trigger.setAttribute("aria-expanded", "false");
       menu.hidden = true;
     });
@@ -353,6 +353,7 @@
     });
     $$("button[data-value]", menu).forEach((option) => {
       option.addEventListener("click", () => {
+        if (option.disabled) return;
         trigger.dataset.value = option.dataset.value;
         $("span", trigger).textContent = option.textContent;
         $$("button[data-value]", menu).forEach((item) => item.setAttribute("aria-selected", String(item === option)));
@@ -401,7 +402,7 @@
       const created = await fetch("/api/searches", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ keyword, filters: { rangeDays: Number(els.rangeDays.dataset.value), workMode: els.workMode.dataset.value } })
+        body: JSON.stringify({ keyword, filters: { rangeDays: Number(els.rangeDays.dataset.value), source: els.source.dataset.value } })
       }).then((response) => response.json());
       if (!created.taskId) throw new Error(created.error || "无法创建搜索任务");
       let task;
@@ -1607,7 +1608,7 @@
       refreshSearch();
     });
     bindFilterSelect(els.rangeDays, els.rangeDaysMenu);
-    bindFilterSelect(els.workMode, els.workModeMenu);
+    bindFilterSelect(els.source, els.sourceMenu);
     els.closeResults.addEventListener("click", closeResults);
     els.cardClose.addEventListener("click", () => clearSelection());
     els.cardPrev.addEventListener("click", () => cycleFeatured(-1));

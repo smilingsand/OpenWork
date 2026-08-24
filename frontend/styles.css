@@ -1142,6 +1142,10 @@ label svg,
 .filter-menu button:hover,
 .filter-menu button:focus-visible,
 .filter-menu button[aria-selected="true"] { background: rgba(36, 48, 52, 0.075); }
+.filter-menu button:disabled { color: #98a1a3; cursor: not-allowed; }
+
+.source-filter .filter-trigger { min-width: 168px; }
+.source-filter .filter-menu { min-width: 196px; }
 
 .app-header .reset-view {
   position: static;
