@@ -42,7 +42,7 @@
           <div class="filter-select source-filter">
             <button class="filter-trigger" id="source" type="button" data-value="remote" aria-haspopup="listbox" aria-expanded="false"><span id="source-label">Remote</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 9 5 5 5-5" /></svg></button>
             <div class="filter-menu" id="source-menu" role="listbox" aria-label="岗位来源" hidden>
-              <button type="button" role="option" data-value="remote" aria-selected="true">Remote</button><button type="button" role="option" data-value="anysearch">AnySearch (Adzuna)</button><button type="button" role="option" disabled aria-disabled="true">LinkedIn（暂未接入）</button><button type="button" role="option" disabled aria-disabled="true">SEEK（暂未接入）</button>
+              <button type="button" role="option" data-value="remote" aria-selected="true">Remote</button><button type="button" role="option" data-value="anysearch">AnySearch (Adzuna)</button><button type="button" role="option" data-value="linkedin">LinkedIn</button><button type="button" role="option" disabled aria-disabled="true">SEEK（暂未接入）</button>
             </div>
           </div>
         </div>
@@ -118,7 +118,11 @@
           <div class="search-input-wrap">
             <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6" /><path d="m16 16 4 4" /></svg>
             <input id="job-search" type="search" autocomplete="off" placeholder="搜索职位、公司或城市" aria-controls="result-sheet" aria-label="搜索职位、公司或城市" />
-            <button class="search-count" id="search-count" type="button" aria-live="polite" aria-controls="result-sheet" aria-expanded="false" title="展开岗位列表" disabled></button>
+            <div class="search-relevance" id="search-relevance" aria-label="岗位相关性" hidden>
+              <button class="search-count" id="search-count-strong" type="button" aria-controls="result-sheet" aria-expanded="false" title="显示强相关岗位" disabled><span>强</span><b>0</b></button>
+              <button class="search-count" id="search-count-weak" type="button" aria-controls="result-sheet" aria-expanded="false" title="显示弱相关岗位" disabled><span>弱</span><b>0</b></button>
+            </div>
+            <span class="search-status" id="search-status" aria-live="polite" hidden></span>
           </div>
         </form>
       </section>

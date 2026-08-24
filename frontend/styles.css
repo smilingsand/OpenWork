@@ -758,19 +758,28 @@ label svg,
 
 .search-input-wrap input::placeholder { color: #8b9597; }
 
-.search-count {
+.search-relevance { display: flex; align-items: center; gap: 4px; }
+.search-relevance[hidden] { display: none; }
+
+.search-count,
+.search-status {
   flex: 0 0 auto;
-  min-width: 46px;
-  padding: 0;
+  min-width: 34px;
+  padding: 3px 5px;
   border: 0;
   color: var(--ink-faint);
   background: transparent;
   font-family: inherit;
   font-size: 10px;
-  text-align: right;
+  text-align: center;
   white-space: nowrap;
-  cursor: pointer;
 }
+
+.search-count { cursor: pointer; border-radius: 8px; }
+.search-count span { margin-right: 2px; }
+.search-count b { font-weight: 650; }
+.search-count.is-active { color: #2d765e; background: rgba(105, 198, 155, 0.22); }
+.search-status { color: var(--ink-faint); }
 
 .search-count:hover:not(:disabled),
 .search-count:focus-visible:not(:disabled) { color: var(--ink); }
@@ -1586,7 +1595,8 @@ label svg,
   .app-page .search-input-wrap input { height: 44px; padding: 0 8px; font-size: 12px; }
   .app-page .filter-trigger,
   .app-page .filter-menu button { font-size: 12px; }
-  .app-page .search-count { display: none; }
+  .app-page .search-relevance { display: none; }
+  .app-page .search-status { display: none; }
   .app-page .result-sheet {
     top: auto;
     right: 10px;

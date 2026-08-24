@@ -74,6 +74,10 @@
   const state = {
     globe: null,
     query: params.get("q") || "",
+    queryTerms: [],
+    strongJobs: [],
+    weakJobs: [],
+    relevanceMode: "strong",
     selected: null,
     selectionPool: [],
     selectionType: null,
@@ -114,7 +118,10 @@
     reset: $("#reset-view"),
     form: $("#search-form"),
     search: $("#job-search"),
-    count: $("#search-count"),
+    relevance: $("#search-relevance"),
+    strongCount: $("#search-count-strong"),
+    weakCount: $("#search-count-weak"),
+    searchStatus: $("#search-status"),
     sheet: $("#result-sheet"),
     popover: $("#map-popover"),
     resultLabel: $("#result-label"),
@@ -210,34 +217,45 @@
     return pinPalette[Math.abs(stringHash(seed)) % pinPalette.length];
   }
 
-  function matches(job) {
-    const query = normalize(state.query);
-    if (!query) return true;
-    const haystack = normalize([
-      job.title, job.company, job.category, job.location, job.mapCity, job.summary, ...(job.tags || [])
-    ].join(" "));
-    const synonymMatch = (token) => {
-      if (["设计师", "设计", "ui", "ux"].includes(token)) return job.category === "设计" || haystack.includes(token);
-      if (["程序员", "开发者", "开发", "工程师"].includes(token)) return ["开发", "人工智能"].includes(job.category) || haystack.includes(token);
-      if (["ai", "人工智能", "机器学习", "大模型"].includes(token)) return job.category === "人工智能" || haystack.includes(token);
-      if (["产品经理", "产品"].includes(token)) return job.category === "产品" || haystack.includes(token);
-      if (["营销", "市场"].includes(token)) return job.category === "市场" || haystack.includes(token);
-      if (["销售", "商务"].includes(token)) return job.category === "销售" || haystack.includes(token);
-      if (["运营", "社群"].includes(token)) return job.category === "运营" || haystack.includes(token);
-      if (["远程", "居家", "在家办公"].includes(token)) return job.remote || haystack.includes(token);
-      return haystack.includes(token);
-    };
-    return query.split(/\s+/).every(synonymMatch);
-  }
-
   function activeSearch() {
     return Boolean(state.query.trim());
   }
 
   function matchingJobs() {
-    return jobs.filter((job) => matches(job)
-      && (!state.selectedCountryKey || job.countryKey === state.selectedCountryKey))
+    return jobs.filter((job) => !state.selectedCountryKey || job.countryKey === state.selectedCountryKey)
       .sort((a, b) => (b.attention || 0) - (a.attention || 0));
+  }
+
+  function activeRelevanceJobs() {
+    return state.relevanceMode === "weak" ? state.weakJobs : state.strongJobs;
+  }
+
+  function applyRelevanceJobs() {
+    jobs.splice(0, jobs.length, ...activeRelevanceJobs());
+    window.WORK_JOBS = jobs;
+    mapJobs = jobs.filter((job) => job.mapPrecision === "city" && Number.isFinite(job.lat) && Number.isFinite(job.lng));
+    spreadSharedLocations(mapJobs);
+    refreshCountryJobAssignments();
+  }
+
+  function renderRelevanceControls() {
+    const strong = state.strongJobs.length;
+    const weak = state.weakJobs.length;
+    const visible = activeSearch() && (strong || weak) && !els.searchStatus.textContent;
+    els.relevance.hidden = !visible;
+    [[els.strongCount, "strong", strong], [els.weakCount, "weak", weak]].forEach(([button, mode, count]) => {
+      button.querySelector("b").textContent = count;
+      button.disabled = count === 0;
+      button.classList.toggle("is-active", state.relevanceMode === mode);
+      button.setAttribute("aria-pressed", String(state.relevanceMode === mode));
+      button.setAttribute("aria-expanded", String(state.resultsOpen));
+    });
+  }
+
+  function setSearchStatus(message = "") {
+    els.searchStatus.textContent = message;
+    els.searchStatus.hidden = !message;
+    if (message) els.relevance.hidden = true;
   }
 
   function pointRadius(job) {
@@ -294,13 +312,12 @@
   function renderResults() {
     const result = matchingJobs();
     const visible = result;
-    // 输入框数字代表本次关键词检索的总结果；国家筛选只影响地图和右侧列表。
-    els.count.textContent = activeSearch() ? `${jobs.length} 个` : "";
-    els.count.disabled = !activeSearch() || jobs.length === 0;
+    renderRelevanceControls();
+    const relevanceLabel = state.relevanceMode === "weak" ? "弱相关" : "强相关";
     els.resultLabel.textContent = activeSearch()
       ? state.selectedCountryKey
-        ? `${state.selectedCountryName} · ${result.length} 个岗位`
-        : `找到 ${result.length} 个岗位`
+        ? `${state.selectedCountryName} · ${relevanceLabel} ${result.length} 个岗位`
+        : `${relevanceLabel} · ${result.length} 个岗位`
       : "本月值得看看";
     els.resultEmpty.hidden = result.length > 0;
     els.resultList.innerHTML = visible.map((job) => `
@@ -325,16 +342,14 @@
     }
     state.resultsOpen = true;
     els.sheet.hidden = false;
-    els.count.setAttribute("aria-expanded", "true");
-    els.count.title = "收起岗位列表";
+    [els.strongCount, els.weakCount].forEach((button) => button.setAttribute("aria-expanded", "true"));
     renderResults();
   }
 
   function closeResults() {
     state.resultsOpen = false;
     els.sheet.hidden = true;
-    els.count.setAttribute("aria-expanded", "false");
-    els.count.title = "展开岗位列表";
+    [els.strongCount, els.weakCount].forEach((button) => button.setAttribute("aria-expanded", "false"));
   }
 
   function closeFilterMenus() {
@@ -383,7 +398,7 @@
     state.query = els.search.value;
     renderResults();
     refreshGlobePoints();
-    if (state.selected && !matches(state.selected)) clearSelection(false);
+    if (state.selected && !jobs.some((job) => job.id === state.selected.id)) clearSelection(false);
     syncUrl();
     if (shouldOpen) openResults();
   }
@@ -396,8 +411,7 @@
     }
     state.query = keyword;
     closeResults();
-    els.count.textContent = "检索中…";
-    els.count.disabled = true;
+    setSearchStatus("检索中…");
     try {
       const created = await fetch("/api/searches", {
         method: "POST",
@@ -411,22 +425,21 @@
         task = await fetch(`/api/searches/${created.taskId}`).then((response) => response.json());
       } while (["queued", "running"].includes(task.status));
       if (!task.result) throw new Error(task.error || "搜索未返回结果");
+      state.query = task.result.query.keyword;
+      state.queryTerms = task.result.query.keywordTerms || [];
+      els.search.value = state.query;
       clearSelection(false);
-      jobs.splice(0, jobs.length, ...task.result.jobs);
-      window.WORK_JOBS = jobs;
-      mapJobs = jobs.filter((job) => job.mapPrecision === "city" && Number.isFinite(job.lat) && Number.isFinite(job.lng));
-      spreadSharedLocations(mapJobs);
-      refreshCountryJobAssignments();
+      state.strongJobs = task.result.jobs;
+      state.weakJobs = task.result.weakJobs || [];
+      state.relevanceMode = "strong";
+      setSearchStatus("");
+      applyRelevanceJobs();
       renderResults();
       refreshGlobePoints();
       if (jobs.length) openResults();
       else closeResults();
-      els.count.textContent = jobs.length ? `${jobs.length} 个` : "";
-      els.count.disabled = jobs.length === 0;
-      els.resultLabel.textContent = task.status === "partial" ? `找到 ${jobs.length} 个岗位（部分来源不可用）` : `找到 ${jobs.length} 个岗位`;
     } catch (error) {
-      els.count.textContent = "检索失败";
-      els.count.disabled = true;
+      setSearchStatus("检索失败");
       els.resultLabel.textContent = error.message || "刷新失败，请稍后重试";
       closeResults();
     } finally {
@@ -1252,8 +1265,7 @@
 
   function refreshMarkers() {
     if (!state.globe) return;
-    const visibleJobs = mapJobs.filter((job) => matches(job)
-      && (!state.selectedCountryKey || job.countryKey === state.selectedCountryKey));
+    const visibleJobs = mapJobs.filter((job) => !state.selectedCountryKey || job.countryKey === state.selectedCountryKey);
     const markers = buildMarkers(visibleJobs);
     state.markers = markers;
     state.markerObjects.clear();
@@ -1590,19 +1602,20 @@
       state.query = els.search.value;
       syncUrl();
       closeResults();
-      els.count.textContent = "";
-      els.count.disabled = true;
+      setSearchStatus("");
+      els.relevance.hidden = true;
     });
     els.search.addEventListener("focus", closeResults);
-    els.count.addEventListener("click", () => {
-      if (state.selectedCountryKey) {
-        clearSelection(false);
-        openResults();
-        return;
-      }
-      if (state.resultsOpen) closeResults();
-      else openResults();
-    });
+    [els.strongCount, els.weakCount].forEach((button) => button.addEventListener("click", () => {
+      const mode = button === els.weakCount ? "weak" : "strong";
+      if ((mode === "weak" ? state.weakJobs : state.strongJobs).length === 0) return;
+      state.relevanceMode = mode;
+      clearSelection(false);
+      applyRelevanceJobs();
+      renderResults();
+      refreshGlobePoints();
+      openResults();
+    }));
     els.form.addEventListener("submit", (event) => {
       event.preventDefault();
       refreshSearch();

@@ -1,11 +1,13 @@
-import { validateSearchRequest, filterAndDedupe } from "../jobs/core.mjs";
+import { validateSearchRequest, filterAndDedupe, matchesKeyword } from "../jobs/core.mjs";
 import { remoteCollectors, collectArbeitnow } from "../collectors/remote-api.mjs";
 import { rssCollectors } from "../collectors/remote-rss.mjs";
 import { anySearchCollector } from "../collectors/anysearch.mjs";
+import { linkedInCollector } from "../collectors/linkedin.mjs";
 import { enrichLocations } from "../jobs/locations.mjs";
+import { config } from "../config.mjs";
 
-const CACHE_TTL_MS = Number(process.env.SEARCH_CACHE_TTL_MS || 5 * 60 * 1000);
-const SOURCE_TIMEOUT_MS = Number(process.env.SOURCE_TIMEOUT_MS || 20000);
+const CACHE_TTL_MS = config.server.searchCacheTtlMs;
+const SOURCE_TIMEOUT_MS = config.server.sourceTimeoutMs;
 
 function withTimeout(collector, query) {
   const controller = new AbortController();
@@ -25,9 +27,11 @@ export class SearchService {
     const collectors = [];
     if (query.source === "remote") {
       collectors.push(...remoteCollectors, ...rssCollectors, { name: "Arbeitnow", collect: collectArbeitnow });
-    } else {
+    } else if (query.source === "anysearch") {
       if (!anySearchCollector.enabled()) throw new Error("未配置 AnySearch。请设置 ANYSEARCH_CLI 后重启后端服务。");
       collectors.push(anySearchCollector);
+    } else {
+      collectors.push(linkedInCollector);
     }
     const sources = [];
     const batches = await Promise.all(collectors.map(async (collector) => {
@@ -43,8 +47,18 @@ export class SearchService {
         return [];
       }
     }));
-    const jobs = await enrichLocations(filterAndDedupe(batches.flat(), query));
-    const result = { query: { keyword: query.keyword, filters: { rangeDays: query.rangeDays, source: query.source }, window: { since: query.since.toISOString(), until: query.until.toISOString() } }, jobs, sources, cached: false };
+    const candidates = filterAndDedupe(batches.flat(), query, { matchKeyword: query.source !== "linkedin" });
+    const strongCandidates = query.source === "linkedin" ? candidates.filter((job) => matchesKeyword(job, query.keyword)) : candidates;
+    const weakCandidates = query.source === "linkedin" ? candidates.filter((job) => !matchesKeyword(job, query.keyword)) : [];
+    const [jobs, weakJobs] = await Promise.all([enrichLocations(strongCandidates), enrichLocations(weakCandidates)]);
+    const result = {
+      query: { keyword: query.keyword, keywordTerms: query.keywordTerms, filters: { rangeDays: query.rangeDays, source: query.source }, window: { since: query.since.toISOString(), until: query.until.toISOString() } },
+      jobs,
+      weakJobs,
+      relevance: { strong: jobs.length, weak: weakJobs.length },
+      sources,
+      cached: false
+    };
     this.cache.set(cacheKey, { expiresAt: Date.now() + CACHE_TTL_MS, result });
     return result;
   }

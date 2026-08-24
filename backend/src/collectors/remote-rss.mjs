@@ -1,4 +1,5 @@
 import { cleanText } from "../jobs/core.mjs";
+import { capResults, config } from "../config.mjs";
 
 const feeds = [
   "remote-programming-jobs", "remote-design-jobs", "remote-devops-sysadmin-jobs", "remote-product-jobs",
@@ -18,7 +19,7 @@ export const rssCollectors = [
     name: "We Work Remotely",
     async collect({ signal }) {
       const xmls = await Promise.all(feeds.map((feed) => getText(`https://weworkremotely.com/categories/${feed}.rss`, signal)));
-      return xmls.flatMap((xml, feedIndex) => [...xml.matchAll(/<item>([\s\S]*?)<\/item>/gi)].map((match, index) => {
+      return capResults(xmls.flatMap((xml, feedIndex) => [...xml.matchAll(/<item>([\s\S]*?)<\/item>/gi)].map((match, index) => {
         const item = match[1];
         const fullTitle = tag(item, "title");
         const separator = fullTitle.indexOf(":");
@@ -30,14 +31,14 @@ export const rssCollectors = [
           location: tag(item, "region") || tag(item, "country") || "全球远程", workMode: "remote", date: tag(item, "pubDate"),
           source: "We Work Remotely", sourceUrl: url, tags: [feeds[feedIndex], tag(item, "category")], detail: tag(item, "description")
         };
-      }));
+      })), config.remote.weWorkRemotelyMaxResults);
     }
   },
   {
     name: "NoDesk",
     async collect({ signal }) {
       const xml = await getText("https://nodesk.co/remote-jobs/index.xml", signal);
-      return [...xml.matchAll(/<item>([\s\S]*?)<\/item>/gi)].map((match, index) => {
+      return capResults([...xml.matchAll(/<item>([\s\S]*?)<\/item>/gi)].map((match, index) => {
         const item = match[1];
         const fullTitle = tag(item, "title");
         const position = fullTitle.lastIndexOf(" at ");
@@ -49,7 +50,7 @@ export const rssCollectors = [
           location: "全球远程", workMode: "remote", date: tag(item, "pubDate"), source: "NoDesk", sourceUrl: url,
           detail: tag(item, "description")
         };
-      });
+      }), config.remote.noDeskMaxResults);
     }
   }
 ];

@@ -1,6 +1,8 @@
+import { keywordTerms, normalizeKeywordInput } from "./keywords.mjs";
+
 const WORK_MODES = new Set(["all", "remote", "onsite"]);
 const RANGE_DAYS = new Set([1, 3, 7, 14, 30]);
-const SEARCH_SOURCES = new Set(["remote", "anysearch"]);
+const SEARCH_SOURCES = new Set(["remote", "anysearch", "linkedin"]);
 
 export function createWindow(rangeDays, now = new Date()) {
   if (!RANGE_DAYS.has(rangeDays)) throw new Error("rangeDays 仅支持 1、3、7、14、30");
@@ -13,16 +15,15 @@ export function createWindow(rangeDays, now = new Date()) {
 }
 
 export function validateSearchRequest(input = {}) {
-  const keyword = String(input.keyword || "").trim().slice(0, 120);
-  if (!keyword) throw new Error("请输入职业关键词");
+  const { keyword, terms: keywordTerms } = normalizeKeywordInput(input.keyword);
   const filters = input.filters || {};
   const rangeDays = Number(filters.rangeDays ?? 30);
   const source = String(filters.source ?? "remote");
   if (!RANGE_DAYS.has(rangeDays)) throw new Error("时间范围仅支持 1、3、7、14、30 天");
-  if (!SEARCH_SOURCES.has(source)) throw new Error("岗位来源仅支持 remote、anysearch");
+  if (!SEARCH_SOURCES.has(source)) throw new Error("岗位来源仅支持 remote、anysearch、linkedin");
   // workMode 继续作为岗位标准化字段；页面来源筛选不再直接暴露它。
   const workMode = source === "remote" ? "remote" : "all";
-  return { keyword, rangeDays, source, workMode, ...createWindow(rangeDays) };
+  return { keyword, keywordTerms, rangeDays, source, workMode, ...createWindow(rangeDays) };
 }
 
 export function cleanText(value = "") {
@@ -68,10 +69,9 @@ export function isWithinWindow(value, since, until) {
 }
 
 export function matchesKeyword(job, keyword) {
-  const tokens = String(keyword).trim().toLocaleLowerCase("zh-CN").split(/\s+/).filter(Boolean);
   const haystack = [job.title, job.company, job.category, job.location, job.mapCity, job.summary, ...(job.tags || [])]
     .join(" ").toLocaleLowerCase("zh-CN");
-  return tokens.every((token) => haystack.includes(token));
+  return keywordTerms(keyword).every((term) => haystack.includes(term.value));
 }
 
 export function normalizeJob(raw, context) {
@@ -104,12 +104,12 @@ export function normalizeJob(raw, context) {
   };
 }
 
-export function filterAndDedupe(jobs, query) {
+export function filterAndDedupe(jobs, query, { matchKeyword = true } = {}) {
   const unique = new Map();
   for (const raw of jobs) {
     const job = normalizeJob(raw, query);
     if (!job || !isWithinWindow(job.postedAt, query.since, query.until)) continue;
-    if (!matchesKeyword(job, query.keyword)) continue;
+    if (matchKeyword && !matchesKeyword(job, query.keyword)) continue;
     if (query.workMode !== "all" && job.workMode !== query.workMode) continue;
     const key = `${job.company}|${job.title}|${job.location}`.toLocaleLowerCase("en");
     if (!unique.has(key)) unique.set(key, job);

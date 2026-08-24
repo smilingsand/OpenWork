@@ -5,6 +5,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { SearchService } from "./services/search-service.mjs";
 import { validateSearchRequest } from "./jobs/core.mjs";
+import { config } from "./config.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 const frontendRoot = path.join(root, "frontend");
@@ -56,7 +57,7 @@ export function createApp() {
   return createServer(async (request, response) => {
     const url = new URL(request.url, `http://${request.headers.host || "localhost"}`);
     try {
-      if (request.method === "GET" && url.pathname === "/api/health") return json(response, 200, { status: "ok", anySearchConfigured: Boolean(process.env.ANYSEARCH_CLI) });
+      if (request.method === "GET" && url.pathname === "/api/health") return json(response, 200, { status: "ok", anySearchConfigured: Boolean(config.anySearch.cliPath) });
       if (request.method === "POST" && url.pathname === "/api/searches") {
         const input = await readBody(request);
         validateSearchRequest(input);
@@ -74,6 +75,6 @@ export function createApp() {
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  const port = Number(process.env.PORT || 4173);
+  const port = config.server.port;
   createApp().listen(port, "127.0.0.1", () => console.log(`OpenWork 已启动：http://127.0.0.1:${port}`));
 }

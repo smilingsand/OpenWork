@@ -40,3 +40,14 @@
 - 将查询页第二个筛选从“工作方式”改为“岗位来源”：`Remote` 和 `AnySearch (Adzuna)` 可选，LinkedIn、SEEK 以禁用的“暂未接入”状态展示。
 - 后端 API 改用 `filters.source` 路由采集器：Remote 仅运行远程来源组及 Arbeitnow 的远程岗位；AnySearch 单独运行。AnySearch 改用 `business.jobs` 的结构化参数，单次最多请求 10 条，避免泛搜索优先返回薪资统计页。
 - 完成真实 AnySearch (Adzuna) 端到端验证：`AI` 过去 1 月得到 10 条原始结果，过滤 1 条薪资统计页后保留 9 条有效岗位；过去 1 周对应保留 5 条。重启后的后端来源清单仅含 `AnySearch (Adzuna)`，确认未混入 Remote 来源。
+- 新增 LinkedIn Jobs 匿名公开页 connector，作为独立 `source=linkedin` 来源；按 `f_TPR=r<秒数>` 换算时间范围，解析公开职位卡片。后续已统一为“空格分隔关键词、引号包围多词关键词”的输入格式。
+- LinkedIn connector 默认只解析公开第一页，最多 25 条卡片，可由 `LINKEDIN_MAX_RESULTS`（1–25）降低上限；HTTP 403/429 等访问受阻会作为 LinkedIn 单来源失败，无结果页正常返回零岗位。
+- 完成 LinkedIn 真实端到端验证：`AI` 过去 1 周解析 25 张公开卡片，经日期和关键词过滤后保留 19 条，仅运行 LinkedIn 来源。匿名搜索未提供独立地点参数时会按 LinkedIn 默认国家返回，当前未从自由文本推断地点。
+- 新增根目录 `settings.ini` 和统一配置读取模块：端口、来源超时、缓存时长，以及 Remote、AnySearch、LinkedIn 的采集上限均可集中调整；环境变量优先覆盖。配置文件不保存 API Key、Cookie 或密码。
+- 核对原作者 `main` 的输入约定：原逻辑仅按空白分词并执行 AND 匹配，没有自动识别“职位短语 + 城市”的规则；当前匿名 connector 仍没有独立地点参数。
+- 根据确认的 LinkedIn 输入规范新增 `backend/src/jobs/keywords.mjs`：多个关键词以空格分隔，多词关键词必须引用；中文/全角单双引号和 ASCII 单引号统一为 ASCII 双引号，英文字母转小写，并校验引号与分隔格式。标准示例为 `"data analytics" sydney "technical support"`。
+- Remote 本地过滤、AnySearch、LinkedIn 和前端地图改为消费同一套标准关键词/解析项；前端不再自行拆词或忽略 `AND`，搜索成功后会在输入框回显标准格式。
+- LinkedIn connector 改由公共解析项构造 URL 专用表达式：标准输入 `"data analytics" sydney` 会转换为 `"data analytics" AND sydney` 后再编码至 `keywords`，符合 LinkedIn Jobs URL 的布尔关键词形式。
+- 在 `settings.ini` 的 `[linkedin]` 中新增默认 `geo_id = 92000000`（Worldwide），connector 每次请求均加入 `geoId`，避免匿名 LinkedIn 搜索默认美国。`Australia`、`Sydney` 等用户输入仍作为 `keywords` 关键词传入。
+- LinkedIn connector 增加 `start` 偏移分页：优先采用公开页明确声明的结果数，并受 `[linkedin].max_results` 安全上限与 `page_size` 控制；不确定的 `1,000+` 计数不会突破安全上限，重复职位按 LinkedIn 职位 ID 去重。
+- LinkedIn 结果分为强/弱相关：强相关为公开卡片标题、公司、地点等可解析字段命中关键词；弱相关为 LinkedIn 已召回但未通过该本地直接匹配的岗位。API 返回两组，前端默认显示强相关；点击搜索框右侧“强/弱”数量可切换列表和地图点。Remote、AnySearch 暂全部归为强相关。
